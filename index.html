@@ -265,7 +265,14 @@
   <div class="loader" id="loader">Opening Magazine</div>
 
   <script>
-    const PDF_FILE = "p.pdf";
+    const PDF_FILES = [
+      "p.pdf",
+      "/p.pdf",
+      "/flipbook-magazine/p.pdf",
+      "magazine.pdf",
+      "/magazine.pdf",
+      "/flipbook-magazine/magazine.pdf"
+    ];
     const RENDER_SCALE = 2.15;
     const CACHE_RADIUS = 6;
 
@@ -459,14 +466,34 @@
       window.resizeTimer = setTimeout(renderBook, 140);
     });
 
+    async function findPdfUrl() {
+      const failures = [];
+
+      for (const file of PDF_FILES) {
+        const url = new URL(file, window.location.href).href;
+        try {
+          const response = await fetch(url, { cache: "no-store" });
+          const type = response.headers.get("content-type") || "";
+          if (response.ok && type.includes("application/pdf")) return url;
+          failures.push(`${url} (${response.status}, ${type || "unknown type"})`);
+        } catch (error) {
+          failures.push(`${url} (${error.message})`);
+        }
+      }
+
+      throw new Error(failures.join(" | "));
+    }
+
     async function start() {
-      pdfDoc = await pdfjsLib.getDocument(PDF_FILE).promise;
+      const pdfUrl = await findPdfUrl();
+      pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
       await renderBook();
       loader.classList.add("hide");
     }
 
-    start().catch(() => {
-      loader.textContent = "Open with local server";
+    start().catch((error) => {
+      const reason = error && error.message ? error.message : "PDF could not be loaded";
+      loader.textContent = `PDF not found or too large: ${reason}`;
     });
   </script>
 </body>
