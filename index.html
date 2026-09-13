@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>E-Magazine Flipbook Reader</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #687482;
+      --paper: #f5f1e8;
+      --panel: #ffffff;
+      --panel-soft: #faf7f0;
+      --line: rgba(23, 32, 42, 0.14);
+      --navy: #243447;
+      --maroon: #7b2f35;
+      --gold: #b38b3d;
+      --green: #2f6f63;
+      --shadow: 0 24px 70px rgba(23, 32, 42, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        linear-gradient(135deg, rgba(36, 52, 71, 0.08), transparent 38%),
+        linear-gradient(230deg, rgba(123, 47, 53, 0.08), transparent 36%),
+        var(--paper);
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .topbar {
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px);
+    }
+
+    .wrap {
+      width: min(1240px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .header {
+      min-height: 78px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .seal {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--navy), var(--maroon));
+      box-shadow: 0 12px 28px rgba(36, 52, 71, 0.22);
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(1.15rem, 2.5vw, 1.7rem);
+      letter-spacing: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.86rem;
+    }
+
+    .upload-button,
+    .control {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--ink);
+      background: var(--panel);
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .upload-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 0 16px;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-weight: 700;
+    }
+
+    .upload-button:hover,
+    .control:hover {
+      transform: translateY(-2px);
+      border-color: rgba(179, 139, 61, 0.5);
+      box-shadow: 0 12px 28px rgba(23, 32, 42, 0.12);
+    }
+
+    #pdfInput {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    main {
+      padding: 28px 0 32px;
+    }
+
+    .reader {
+      display: grid;
+      grid-template-columns: 270px minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 98px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 18px 46px rgba(23, 32, 42, 0.08);
+    }
+
+    .meta-label {
+      margin: 0 0 6px;
+      color: var(--maroon);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .sidebar h2 {
+      margin: 0 0 12px;
+      font-size: 1.55rem;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    .sidebar p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.94rem;
+      line-height: 1.65;
+    }
+
+    .detail {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .detail strong {
+      color: var(--ink);
+    }
+
+    .full-action {
+      width: 100%;
+      margin-top: 18px;
+    }
+
+    .hint-actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .stage {
+      min-height: calc(100vh - 176px);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 16px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 12px 34px rgba(23, 32, 42, 0.08);
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .control {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 1.1rem;
+      font-weight: 800;
+    }
+
+    .control.wide {
+      width: auto;
+      padding: 0 14px;
+      font-size: 0.88rem;
+    }
+
+    .control:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .page-status {
+      min-width: 148px;
+      text-align: center;
+      color: var(--muted);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .book-area {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 590px;
+      padding: 28px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(90deg, transparent 49.8%, rgba(23, 32, 42, 0.16) 50%, transparent 50.2%),
+        radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.92), transparent 60%),
+        linear-gradient(135deg, rgba(47, 111, 99, 0.14), rgba(123, 47, 53, 0.12));
+      box-shadow: var(--shadow);
+    }
+
+    .drop-hint {
+      position: absolute;
+      inset: 22px;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      border: 1px dashed rgba(36, 52, 71, 0.26);
+      border-radius: 8px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.54);
+    }
+
+    .drop-hint.hidden {
+      display: none;
+    }
+
+    .drop-hint h3 {
+      margin: 0 0 8px;
+      font-size: clamp(1.7rem, 4vw, 3rem);
+      letter-spacing: 0;
+    }
+
+    .drop-hint p {
+      max-width: 560px;
+      margin: 0 auto 18px;
+      color: var(--muted);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.7;
+    }
+
+    .book {
+      position: relative;
+      width: min(920px, 100%);
+      aspect-ratio: 1.52 / 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      perspective: 1800px;
+      filter: drop-shadow(0 22px 24px rgba(23, 32, 42, 0.2));
+    }
+
+    .book.single {
+      width: min(560px, 100%);
+      grid-template-columns: 1fr;
+      aspect-ratio: 0.72 / 1;
+    }
+
+    .page {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .page.left {
+      border-radius: 8px 0 0 8px;
+      box-shadow: inset -18px 0 24px rgba(23, 32, 42, 0.08);
+    }
+
+    .page.right {
+      border-radius: 0 8px 8px 0;
+      box-shadow: inset 18px 0 24px rgba(23, 32, 42, 0.08);
+    }
+
+    .book.single .page {
+      border-radius: 8px;
+      box-shadow: inset 0 0 24px rgba(23, 32, 42, 0.06);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+      background: #fff;
+    }
+
+    .flip-sheet {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 50%;
+      overflow: hidden;
+      pointer-events: none;
+      transform-style: preserve-3d;
+      background: #fff;
+      opacity: 0;
+    }
+
+    .flip-sheet.right {
+      right: 0;
+      transform-origin: left center;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .flip-sheet.left {
+      left: 0;
+      transform-origin: right center;
+      border-radius: 8px 0 0 8px;
+    }
+
+    .flip-sheet.turn-next {
+      animation: turnNext 620ms ease-in-out;
+    }
+
+    .flip-sheet.turn-prev {
+      animation: turnPrev 620ms ease-in-out;
+    }
+
+    .progress {
+      height: 8px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .progress span {
+      display: block;
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--maroon), var(--gold), var(--green));
+      transition: width 240ms ease;
+    }
+
+    footer {
+      padding: 20px 0 28px;
+      color: var(--muted);
+      text-align: center;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.92rem;
+    }
+
+    footer strong {
+      color: var(--ink);
+    }
+
+    .loading {
+      position: fixed;
+      inset: auto 18px 18px auto;
+      z-index: 20;
+      display: none;
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: #fff;
+      background: rgba(23, 32, 42, 0.92);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-weight: 700;
+      box-shadow: 0 14px 34px rgba(23, 32, 42, 0.24);
+    }
+
+    .loading.show {
+      display: block;
+    }
+
+    @keyframes turnNext {
+      0% {
+        opacity: 1;
+        transform: rotateY(0deg);
+      }
+      100% {
+        opacity: 1;
+        transform: rotateY(-178deg);
+      }
+    }
+
+    @keyframes turnPrev {
+      0% {
+        opacity: 1;
+        transform: rotateY(0deg);
+      }
+      100% {
+        opacity: 1;
+        transform: rotateY(178deg);
+      }
+    }
+
+    @media (max-width: 920px) {
+      .reader {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .header,
+      .toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .upload-button,
+      .toolbar-group,
+      .control.wide {
+        width: 100%;
+      }
+
+      .toolbar-group {
+        justify-content: center;
+      }
+
+      .book-area {
+        min-height: 500px;
+        padding: 14px;
+      }
+
+      .book {
+        grid-template-columns: 1fr;
+        aspect-ratio: 0.72 / 1;
+      }
+
+      .book .page.left,
+      .book .flip-sheet {
+        display: none;
+      }
+
+      .book .page.right {
+        border-radius: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="wrap header">
+        <div class="brand">
+          <div class="seal" aria-hidden="true">EM</div>
+          <div>
+            <h1>E-Magazine Flipbook Reader</h1>
+            <p>Formal digital publication viewer with realistic page navigation</p>
+          </div>
+        </div>
+        <label class="upload-button" for="pdfInput">
+          <span aria-hidden="true">+</span>
+          Upload PDF
+        </label>
+        <input id="pdfInput" type="file" accept="application/pdf" />
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="reader" aria-label="Magazine reader">
+        <aside class="sidebar">
+          <p class="meta-label">Publication Desk</p>
+          <h2 id="documentTitle">Small Actions, Big Change</h2>
+          <p>
+            Upload a PDF magazine or book and read it in a clean flipbook format
+            designed for official digital publication viewing.
+          </p>
+          <div class="detail">
+            <span><strong>Status:</strong> <span id="statusText">Awaiting PDF upload</span></span>
+            <span><strong>View:</strong> <span id="viewMode">Double-page spread</span></span>
+            <span><strong>Credit:</strong> someshbali</span>
+          </div>
+          <button class="upload-button full-action" id="sampleBtn" type="button">Open Included Magazine</button>
+        </aside>
+
+        <div class="stage">
+          <div class="toolbar" aria-label="Reader controls">
+            <div class="toolbar-group">
+              <button class="control" id="firstBtn" type="button" title="First page" aria-label="First page">|&lt;</button>
+              <button class="control" id="prevBtn" type="button" title="Previous page" aria-label="Previous page">&lt;</button>
+            </div>
+            <div class="page-status" id="pageStatus">No document loaded</div>
+            <div class="toolbar-group">
+              <button class="control" id="nextBtn" type="button" title="Next page" aria-label="Next page">&gt;</button>
+              <button class="control" id="lastBtn" type="button" title="Last page" aria-label="Last page">&gt;|</button>
+              <button class="control wide" id="fullscreenBtn" type="button">Fullscreen</button>
+            </div>
+          </div>
+
+          <div class="book-area" id="bookArea">
+            <div class="drop-hint" id="dropHint">
+              <div>
+                <h3>Open Your Digital Magazine</h3>
+                <p>Select or drag a PDF here to begin reading with page flipping, progress tracking, and a formal e-magazine layout.</p>
+                <div class="hint-actions">
+                  <button class="upload-button" id="sampleHeroBtn" type="button">Open Included Magazine</button>
+                  <label class="upload-button" for="pdfInput">Choose PDF File</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="book" id="book">
+              <div class="page left"><canvas id="leftCanvas"></canvas></div>
+              <div class="page right"><canvas id="rightCanvas"></canvas></div>
+              <div class="flip-sheet right" id="flipRight"></div>
+              <div class="flip-sheet left" id="flipLeft"></div>
+            </div>
+          </div>
+
+          <div class="progress" aria-label="Reading progress">
+            <span id="progressBar"></span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">Designed and credited by <strong>someshbali</strong></div>
+    </footer>
+  </div>
+
+  <div class="loading" id="loading">Preparing magazine...</div>
+
+  <script>
+    const pdfInput = document.getElementById("pdfInput");
+    const bookArea = document.getElementById("bookArea");
+    const book = document.getElementById("book");
+    const leftCanvas = document.getElementById("leftCanvas");
+    const rightCanvas = document.getElementById("rightCanvas");
+    const flipRight = document.getElementById("flipRight");
+    const flipLeft = document.getElementById("flipLeft");
+    const dropHint = document.getElementById("dropHint");
+    const loading = document.getElementById("loading");
+    const statusText = document.getElementById("statusText");
+    const documentTitle = document.getElementById("documentTitle");
+    const pageStatus = document.getElementById("pageStatus");
+    const progressBar = document.getElementById("progressBar");
+    const viewMode = document.getElementById("viewMode");
+    const firstBtn = document.getElementById("firstBtn");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const lastBtn = document.getElementById("lastBtn");
+    const fullscreenBtn = document.getElementById("fullscreenBtn");
+    const sampleBtn = document.getElementById("sampleBtn");
+    const sampleHeroBtn = document.getElementById("sampleHeroBtn");
+    const includedPdf = "Small Actions Big Change Magazine Vol 1 2026-27.pdf";
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    let pdfDoc = null;
+    let currentPage = 1;
+    let isRendering = false;
+    let isCompact = window.matchMedia("(max-width: 680px)").matches;
+
+    function setLoading(show, message = "Preparing magazine...") {
+      loading.textContent = message;
+      loading.classList.toggle("show", show);
+    }
+
+    function pageNumbers() {
+      if (!pdfDoc) return [];
+      if (isCompact || currentPage === 1 || currentPage === pdfDoc.numPages) return [currentPage];
+      const left = currentPage % 2 === 0 ? currentPage : currentPage - 1;
+      return [left, Math.min(left + 1, pdfDoc.numPages)];
+    }
+
+    async function renderPage(number, canvas) {
+      const context = canvas.getContext("2d");
+      context.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!pdfDoc || number < 1 || number > pdfDoc.numPages) {
+        canvas.style.visibility = "hidden";
+        return;
+      }
+
+      canvas.style.visibility = "visible";
+      const page = await pdfDoc.getPage(number);
+      const container = canvas.parentElement;
+      const viewport = page.getViewport({ scale: 1 });
+      const maxWidth = container.clientWidth;
+      const maxHeight = container.clientHeight;
+      const scale = Math.min(maxWidth / viewport.width, maxHeight / viewport.height) * 1.95;
+      const scaledViewport = page.getViewport({ scale });
+      const ratio = window.devicePixelRatio || 1;
+
+      canvas.width = Math.floor(scaledViewport.width * ratio);
+      canvas.height = Math.floor(scaledViewport.height * ratio);
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+
+      await page.render({
+        canvasContext: context,
+        viewport: scaledViewport,
+        transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : null
+      }).promise;
+    }
+
+    async function renderSpread() {
+      if (!pdfDoc || isRendering) return;
+      isRendering = true;
+      setLoading(true, "Rendering pages...");
+
+      const pages = pageNumbers();
+      book.classList.toggle("single", pages.length === 1);
+
+      if (pages.length === 1) {
+        await renderPage(0, leftCanvas);
+        await renderPage(pages[0], rightCanvas);
+      } else {
+        await renderPage(pages[0], leftCanvas);
+        await renderPage(pages[1], rightCanvas);
+      }
+
+      updateControls();
+      setLoading(false);
+      isRendering = false;
+    }
+
+    function updateControls() {
+      if (!pdfDoc) {
+        [firstBtn, prevBtn, nextBtn, lastBtn, fullscreenBtn].forEach((btn) => btn.disabled = true);
+        return;
+      }
+
+      const pages = pageNumbers();
+      const pageText = pages.length === 1 ? `Page ${pages[0]}` : `Pages ${pages[0]}-${pages[1]}`;
+      pageStatus.textContent = `${pageText} of ${pdfDoc.numPages}`;
+      progressBar.style.width = `${Math.max(1, (currentPage / pdfDoc.numPages) * 100)}%`;
+      statusText.textContent = "Document loaded";
+      viewMode.textContent = isCompact ? "Single-page mobile view" : "Double-page spread";
+      firstBtn.disabled = currentPage <= 1;
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= pdfDoc.numPages;
+      lastBtn.disabled = currentPage >= pdfDoc.numPages;
+      fullscreenBtn.disabled = false;
+    }
+
+    function animateTurn(direction) {
+      const sheet = direction === "next" ? flipRight : flipLeft;
+      sheet.classList.remove("turn-next", "turn-prev");
+      void sheet.offsetWidth;
+      sheet.classList.add(direction === "next" ? "turn-next" : "turn-prev");
+      setTimeout(() => sheet.classList.remove("turn-next", "turn-prev"), 640);
+    }
+
+    async function openPdf(file) {
+      if (!file) return;
+      setLoading(true, "Loading PDF...");
+      const buffer = await file.arrayBuffer();
+      pdfDoc = await pdfjsLib.getDocument({ data: buffer }).promise;
+      currentPage = 1;
+      documentTitle.textContent = file.name.replace(/\.pdf$/i, "");
+      dropHint.classList.add("hidden");
+      await renderSpread();
+    }
+
+    async function openIncludedPdf() {
+      try {
+        setLoading(true, "Opening included magazine...");
+        const response = await fetch(includedPdf);
+        if (!response.ok) throw new Error("PDF not found");
+        const buffer = await response.arrayBuffer();
+        pdfDoc = await pdfjsLib.getDocument({ data: buffer }).promise;
+        currentPage = 1;
+        documentTitle.textContent = "Small Actions, Big Change - Magazine Vol.1 2026-27";
+        dropHint.classList.add("hidden");
+        await renderSpread();
+      } catch {
+        setLoading(false);
+        statusText.textContent = "Open with a local server or upload the PDF";
+        pageStatus.textContent = "Use Upload PDF to begin";
+      }
+    }
+
+    function moveTo(page, direction) {
+      if (!pdfDoc || isRendering) return;
+      const target = Math.max(1, Math.min(page, pdfDoc.numPages));
+      if (target === currentPage) return;
+      animateTurn(direction);
+      currentPage = target;
+      setTimeout(renderSpread, 230);
+    }
+
+    pdfInput.addEventListener("change", (event) => openPdf(event.target.files[0]));
+    sampleBtn.addEventListener("click", openIncludedPdf);
+    sampleHeroBtn.addEventListener("click", openIncludedPdf);
+    firstBtn.addEventListener("click", () => moveTo(1, "prev"));
+    prevBtn.addEventListener("click", () => moveTo(currentPage - (isCompact ? 1 : 2), "prev"));
+    nextBtn.addEventListener("click", () => moveTo(currentPage + (isCompact ? 1 : 2), "next"));
+    lastBtn.addEventListener("click", () => moveTo(pdfDoc ? pdfDoc.numPages : 1, "next"));
+
+    fullscreenBtn.addEventListener("click", () => {
+      if (!document.fullscreenElement) {
+        bookArea.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+    });
+
+    bookArea.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      bookArea.style.borderColor = "rgba(179, 139, 61, 0.75)";
+    });
+
+    bookArea.addEventListener("dragleave", () => {
+      bookArea.style.borderColor = "";
+    });
+
+    bookArea.addEventListener("drop", (event) => {
+      event.preventDefault();
+      bookArea.style.borderColor = "";
+      const file = [...event.dataTransfer.files].find((item) => item.type === "application/pdf");
+      openPdf(file);
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight") moveTo(currentPage + (isCompact ? 1 : 2), "next");
+      if (event.key === "ArrowLeft") moveTo(currentPage - (isCompact ? 1 : 2), "prev");
+      if (event.key === "Home") moveTo(1, "prev");
+      if (event.key === "End" && pdfDoc) moveTo(pdfDoc.numPages, "next");
+    });
+
+    window.addEventListener("resize", () => {
+      const newCompact = window.matchMedia("(max-width: 680px)").matches;
+      if (newCompact !== isCompact) {
+        isCompact = newCompact;
+      }
+      clearTimeout(window.resizeRenderTimer);
+      window.resizeRenderTimer = setTimeout(renderSpread, 180);
+    });
+
+    updateControls();
+  </script>
+</body>
+</html>
